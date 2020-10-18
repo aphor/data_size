@@ -50,7 +50,7 @@ class DataSize(__DataSize_super__):
         }
     IEC_prefixes = {
         # binary IEC unit prefixes
-        'ki': 1024,
+        'Ki': 1024,
         'Mi': 1024**2,
         'Gi': 1024**3,
         'Ti': 1024**4,
@@ -130,7 +130,7 @@ class DataSize(__DataSize_super__):
               size with a quantity >= 1 (default)
         A    abbreviated number of bytes (implied IEC units of 'B' bytes)
         B    bytes      (1)
-        kiB  kibibytes  (1024)
+        KiB  kibibytes  (1024)
         kB   kilobytes  (1000)
         ...
         GiB  Gibibytes  (1024**3)
