@@ -35,7 +35,7 @@ if __name__ == '__main__':
         before running unit tests against it.'''
     print('parse_and_format_results = {')
     for i in fixed_cases:
-        i['DS'] = DataSizeq('{n}{p}{b}'.format(**i))
+        i['DS'] = DataSize('{n}{p}{b}'.format(**i))
         fmt_code_str = '"{{DS:{}}}"'.format(__default_autoformat__)
         print('\t'.join(('','({n},','"{p}",','"{b}"):',fmt_code_str,',')).format(**i))
     for i in auto_cases:
