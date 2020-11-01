@@ -19,7 +19,7 @@ def test_parse_and_format():
         
 def test_autoformat_defaults():
     yield string_format_check, '{:A}', '1024', '1k'
-    yield string_format_check, '{}', '1024', '1kiB'
+    yield string_format_check, '{}', '1024', '1KiB'
     yield string_format_check, '{:B}', '1024', '1024B'
     yield string_format_check, '{}', '1', '1B  ' # todo: https://github.com/aphor/datasize/issues/6
 
@@ -35,7 +35,7 @@ if __name__ == '__main__':
         before running unit tests against it.'''
     print('parse_and_format_results = {')
     for i in fixed_cases:
-        i['DS'] = DataSizeq('{n}{p}{b}'.format(**i))
+        i['DS'] = DataSize('{n}{p}{b}'.format(**i))
         fmt_code_str = '"{{DS:{}}}"'.format(__default_autoformat__)
         print('\t'.join(('','({n},','"{p}",','"{b}"):',fmt_code_str,',')).format(**i))
     for i in auto_cases:
