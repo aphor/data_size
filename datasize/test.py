@@ -16,9 +16,9 @@ def test_parse_and_format():
         parsed_string = '{}{}{}'.format(*example)
         format_code_str ='{{:{}}}'.format(__default_autoformat__)
         yield string_format_check, format_code_str, parsed_string, formatted_string
-        
+
 def test_autoformat_defaults():
-    yield string_format_check, '{:A}', '1024', '1k'
+    yield string_format_check, '{:A}', '1024', '1K'
     yield string_format_check, '{}', '1024', '1KiB'
     yield string_format_check, '{:B}', '1024', '1024B'
     yield string_format_check, '{}', '1', '1B  ' # todo: https://github.com/aphor/datasize/issues/6
