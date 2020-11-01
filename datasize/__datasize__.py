@@ -32,6 +32,9 @@ else:
 
 class DataSize(__DataSize_super__):
     '''Integer subclass that handles units appropriate for data allocation.
+    https://www.iso.org/standard/31898.html
+    https://physics.nist.gov/cuu/Units/binary.html
+    
     Adapts popular string representations of data sizes to integer values
     supporting arithmetic and alternate string representations.
     Internally represents data amounts as an integer count of bytes.
@@ -123,7 +126,7 @@ class DataSize(__DataSize_super__):
                 raw = raw[:-offset]
                 multiple = DataSize.unit_prefixes[prefix]
                 break
-        
+
         if raw[-1] in DataSize.autoformat_prefixes: #rstrip autoformat_prefixes
             raw = raw[:-1]
         raw_number = float(raw)
@@ -133,10 +136,10 @@ class DataSize(__DataSize_super__):
         else:
             bits = raw_number * word_length * multiple
             value = raw_number * multiple
-        
+
         if isinstance(value, float):
             value = ceil(value)
-        
+
         return __DataSize_super__.__new__(DataSize, value)
 
     def __format__(self, code):
@@ -214,7 +217,7 @@ class DataSize(__DataSize_super__):
                     break
                 prefix, denomination = '', 1
         value = float(self * multiple)/float(denomination)
-        
+
         if value.is_integer():  # emit integers if we can do it cleanly
             code = code.split('.', 1)[0]  # precision in the code? strip it
             if code:
