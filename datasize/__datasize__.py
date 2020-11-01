@@ -34,7 +34,7 @@ class DataSize(__DataSize_super__):
     '''Integer subclass that handles units appropriate for data allocation.
     https://www.iso.org/standard/31898.html
     https://physics.nist.gov/cuu/Units/binary.html
-    
+
     Adapts popular string representations of data sizes to integer values
     supporting arithmetic and alternate string representations.
     Internally represents data amounts as an integer count of bytes.
@@ -59,7 +59,8 @@ class DataSize(__DataSize_super__):
     autoformat_prefixes = ('a', 'A')
     metric_prefixes = {
         # metric/decimal unit prefixes
-        'k': 1000,
+        'K': 1000,
+        'k': 1000, # 'K' should be preferred, but 'k' accepted
         'M': 1000**2,
         'G': 1000**3,
         'T': 1000**4,
