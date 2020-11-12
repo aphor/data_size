@@ -18,10 +18,15 @@ def test_parse_and_format():
         yield string_format_check, format_code_str, parsed_string, formatted_string
 
 def test_autoformat_defaults():
-    yield string_format_check, '{:A}', '1024', '1K'
+    yield string_format_check, '{:A}', '1000', '1K'
+    yield string_format_check, '{:a}', '1000', '1KB '
     yield string_format_check, '{}', '1024', '1KiB'
     yield string_format_check, '{:B}', '1024', '1024B'
-    yield string_format_check, '{}', '1', '1B  ' # todo: https://github.com/aphor/datasize/issues/6
+
+def test_bug_ticket_regressions():
+     # https://github.com/aphor/datasize/issues/6
+    assert DataSize('10KiB') == 10240
+    assert DataSize('10kiB') == 10240
 
 example_values = (1, 2, 4, 16, 64, 1024, 65536, 0.1, 0.25, 0.125, 56.65)
 prefixes = list(DataSize.unit_prefixes.keys())

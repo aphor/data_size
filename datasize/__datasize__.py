@@ -59,8 +59,8 @@ class DataSize(__DataSize_super__):
     autoformat_prefixes = ('a', 'A')
     metric_prefixes = {
         # metric/decimal unit prefixes
-        'K': 1000,
         'k': 1000, # 'K' should be preferred, but 'k' accepted
+        'K': 1000,
         'M': 1000**2,
         'G': 1000**3,
         'T': 1000**4,
@@ -81,7 +81,7 @@ class DataSize(__DataSize_super__):
         'Yi': 1024**8,
         }
     nonstandard_prefixes = dict(zip(
-            (k[0] for k in IEC_prefixes.keys()),
+            (k.lower() for k in IEC_prefixes.keys()),
             (m for m in IEC_prefixes.values())
             ))
     unit_prefixes = metric_prefixes.copy()
@@ -91,7 +91,7 @@ class DataSize(__DataSize_super__):
         tuple(unit_prefixes.values()), tuple(unit_prefixes.keys())))
     nonstandard_units = dict(zip(
         (m for m in IEC_prefixes.values()),
-        (k[0] for k in IEC_prefixes.keys())))
+        (k.lower() for k in IEC_prefixes.keys())))
 
     def __init__(self, spec, word_length=8):
         '''Usage:
@@ -107,6 +107,7 @@ class DataSize(__DataSize_super__):
         '''
         self.word_length = int(word_length)
 
+
     def __new__(subclass, spec, **kwargs):
         '''Because DataSize is a subclass of int, we must override __new__()
         to implement a string decoder that can provide an immutable integer
@@ -115,22 +116,32 @@ class DataSize(__DataSize_super__):
         word_length = int(kwargs.get('word_length', DataSize.word_length))
         unit = 'bytes'
         multiple = 1
-        raw = spec[:]
-        if raw[-1] == DataSize.bit_suffix:
-            unit = 'bits'
-        raw = raw.rstrip(DataSize.bit_suffix).rstrip(DataSize.byte_suffix)
-        units = list(DataSize.unit_prefixes.keys())
-        units.sort(reverse=True)
-        for prefix in units:
-            offset = len(prefix)
-            if raw[-offset:] == prefix:
-                raw = raw[:-offset]
-                multiple = DataSize.unit_prefixes[prefix]
-                break
+        # find the index of the first non-numeric or decimal character in a raw DataSize string
+        _str_unit_index = lambda _s: (max((_s.rfind(n) for n in list(map(str,range(10))) + ['.'])) + 1)
 
-        if raw[-1] in DataSize.autoformat_prefixes: #rstrip autoformat_prefixes
-            raw = raw[:-1]
-        raw_number = float(raw)
+        # partition raw DataSize string into decimal string and data size unit abbreviation
+        _str_partition = lambda _s: (_s[:_str_unit_index(_s)], _s[_str_unit_index(_s):])
+
+        _raw_size, _raw_unit = _str_partition(spec.strip())
+
+        if _raw_unit and _raw_unit[-1] == DataSize.bit_suffix:
+            unit = 'bits'
+        _raw_unit = _raw_unit.rstrip(''.join((DataSize.bit_suffix, DataSize.byte_suffix)))
+
+        prefixes = {}
+        prefixes.update(DataSize.nonstandard_prefixes)
+        prefixes.update(DataSize.unit_prefixes)
+
+        if _raw_unit == '':
+            #assume bytes if no unit is given
+            multiple = 1
+        else:
+            try:
+                multiple = prefixes[_raw_unit]
+            except KeyError as ex:
+                raise ValueError("'{}' invalid unit: '{}'".format(spec, _raw_unit))
+
+        raw_number = float(_raw_size)
         if unit == 'bits':
             bits = raw_number * multiple
             value = __bits_to_bytes__(bits)
@@ -165,7 +176,7 @@ class DataSize(__DataSize_super__):
                 DataSize('750GB'),DataSize(DataSize('750GB') * 0.8))
         'My new 750GB SSD really only stores 558.79GiB of data.'
         '''
-        base_unit = ''
+        base_unit = 'B'
         prefix = ''
         denomination = 1
         multiple = 1
@@ -182,14 +193,12 @@ class DataSize(__DataSize_super__):
 
         if fmt_mode in auto_modes:  # automatically choose a denomination/unit
             if fmt_mode == 'A':
-                prefix_units = self.nonstandard_units
                 suffix_rpad_spaces = max(
-                        [len(k) for k in prefix_units.values()]
+                        [len(k) - 1 for k in self.prefix_units.values()]
                     )
             else:
-                base_unit = 'B'
                 suffix_rpad_spaces = 1 + max(
-                        [len(k) for k in prefix_units.values()]
+                        [len(k) for k in self.prefix_units.values()]
                     )
             code = code.rstrip(''.join(auto_modes))
             denominations = list(prefix_units.keys())
