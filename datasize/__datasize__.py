@@ -30,6 +30,14 @@ else:
     __DataSize_super__ = int
 
 
+# find the index of the first non-numeric or decimal character in a raw DataSize string
+_str_unit_index = lambda _s: (max((_s.rfind(n) for n in list(map(str,range(10))) + ['.'])) + 1)
+
+# partition raw DataSize string into decimal string and data size unit abbreviation
+_str_partition = lambda _s: (_s[:_str_unit_index(_s)], _s[_str_unit_index(_s):])
+
+_map_rev = lambda _Dict_: dict(((v,k) for k,v in _Dict_.items()))
+
 class DataSize(__DataSize_super__):
     '''Integer subclass that handles units appropriate for data allocation.
     https://www.iso.org/standard/31898.html
@@ -56,7 +64,7 @@ class DataSize(__DataSize_super__):
     '''
     word_length = 8  # defaults to octet = byte for conversion to/from bits
     bit_suffix, byte_suffix = 'b', 'B'
-    autoformat_prefixes = ('a', 'A')
+
     metric_prefixes = {
         # metric/decimal unit prefixes
         'k': 1000, # 'K' should be preferred, but 'k' accepted
@@ -116,41 +124,41 @@ class DataSize(__DataSize_super__):
         word_length = int(kwargs.get('word_length', DataSize.word_length))
         unit = 'bytes'
         multiple = 1
-        # find the index of the first non-numeric or decimal character in a raw DataSize string
-        _str_unit_index = lambda _s: (max((_s.rfind(n) for n in list(map(str,range(10))) + ['.'])) + 1)
 
-        # partition raw DataSize string into decimal string and data size unit abbreviation
-        _str_partition = lambda _s: (_s[:_str_unit_index(_s)], _s[_str_unit_index(_s):])
+        if '__floordiv__' not in dir(spec):
 
-        _raw_size, _raw_unit = _str_partition(spec.strip())
+            _raw_size, _raw_unit = _str_partition(spec.strip())
 
-        if _raw_unit and _raw_unit[-1] == DataSize.bit_suffix:
-            unit = 'bits'
-        _raw_unit = _raw_unit.rstrip(''.join((DataSize.bit_suffix, DataSize.byte_suffix)))
+            if _raw_unit and _raw_unit[-1] == DataSize.bit_suffix:
+                unit = 'bits'
+            _raw_unit = _raw_unit.rstrip(''.join((DataSize.bit_suffix, DataSize.byte_suffix)))
 
-        prefixes = {}
-        prefixes.update(DataSize.nonstandard_prefixes)
-        prefixes.update(DataSize.unit_prefixes)
+            prefixes = {}
+            prefixes.update(DataSize.nonstandard_prefixes)
+            prefixes.update(DataSize.unit_prefixes)
 
-        if _raw_unit == '':
-            #assume bytes if no unit is given
-            multiple = 1
+            if _raw_unit == '':
+                #assume bytes if no unit is given
+                multiple = 1
+            else:
+                try:
+                    multiple = prefixes[_raw_unit]
+                except KeyError as ex:
+                    raise ValueError("'{}' invalid unit: '{}'".format(spec, _raw_unit))
+
+            raw_number = float(_raw_size)
+            if unit == 'bits':
+                bits = raw_number * multiple
+                value = __bits_to_bytes__(bits)
+            else:
+                bits = raw_number * word_length * multiple
+                value = raw_number * multiple
+
+            if isinstance(value, float):
+                value = ceil(value)
         else:
-            try:
-                multiple = prefixes[_raw_unit]
-            except KeyError as ex:
-                raise ValueError("'{}' invalid unit: '{}'".format(spec, _raw_unit))
-
-        raw_number = float(_raw_size)
-        if unit == 'bits':
-            bits = raw_number * multiple
-            value = __bits_to_bytes__(bits)
-        else:
-            bits = raw_number * word_length * multiple
-            value = raw_number * multiple
-
-        if isinstance(value, float):
-            value = ceil(value)
+            # spec is a number, not a string, so just assume bytes
+            value = ceil(ceil(word_length * spec) / 8)
 
         return __DataSize_super__.__new__(DataSize, value)
 
@@ -161,6 +169,8 @@ class DataSize(__DataSize_super__):
         a    autoformat will choose a unit defaulting to the largest
               size with a quantity >= 1 (default)
         A    abbreviated number of bytes (implied IEC units of 'B' bytes)
+        m    metric, like 'a' but only metric denominations
+        I    IEC, like 'a' but only IEC denominations
         B    bytes      (1)
         KiB  kibibytes  (1024)
         kB   kilobytes  (1000)
@@ -180,41 +190,60 @@ class DataSize(__DataSize_super__):
         prefix = ''
         denomination = 1
         multiple = 1
-        auto_modes = self.autoformat_prefixes
+        auto_modes = ('a', 'A', 'm', 'I')
         suffix_rpad_spaces = 0
-        prefix_units = self.prefix_units
-        if not code or code[-1] == 'a':
-            fmt_mode = 'a'
-        elif code[-1] == 'A':
-            fmt_mode = 'A'
-            base_unit = ''
-        else:
-            fmt_mode = None
 
-        if fmt_mode in auto_modes:  # automatically choose a denomination/unit
-            if fmt_mode == 'A':
-                suffix_rpad_spaces = max(
-                        [len(k) - 1 for k in self.prefix_units.values()]
-                    )
-            else:
-                suffix_rpad_spaces = 1 + max(
-                        [len(k) for k in self.prefix_units.values()]
-                    )
-            code = code.rstrip(''.join(auto_modes))
-            denominations = list(prefix_units.keys())
+        auto_fmt_modes = {
+            'a': {
+                'description': "default autoformat",
+                'unit_prefixes': self.unit_prefixes,
+                'prefix_units': _map_rev(self.unit_prefixes),
+                'suffix_rpad_spaces': 1,
+            },
+            'A': {
+                'description': "(legacy) abbreviated autoformat",
+                'unit_prefixes': self.IEC_prefixes,
+                'prefix_units': _map_rev(self.IEC_prefixes),
+                'suffix_rpad_spaces': 0,
+            },
+            'm': {
+                'description': "metric units only autoformat",
+                'unit_prefixes': self.metric_prefixes,
+                'prefix_units': _map_rev(self.metric_prefixes),
+                'suffix_rpad_spaces': 0,
+            },
+            'I': {
+                'description': "IEC units only autoformat",
+                'unit_prefixes': self.IEC_prefixes,
+                'prefix_units': _map_rev(self.IEC_prefixes),
+                'suffix_rpad_spaces': 1,
+            }
+        }
+
+        if not code:
+            fmt_mode = auto_fmt_modes['a']
+        elif code[-1] in auto_fmt_modes:
+            fmt_mode = auto_fmt_modes[code[-1]]
+            base_unit = ''
+
+            code = code[:-1]
+            denominations = list(fmt_mode['prefix_units'].keys())
             denominations.sort(reverse=True)
+
+            import pdb; pdb.set_trace()
+
             for quantity in denominations:
-                if self * multiple >= quantity:
-                    prefix = prefix_units[quantity]
+                if float(self) / float(quantity) >= 1.0:
+                    prefix = fmt_mode['prefix_units'][quantity]
                     denomination = quantity
                     break
-        else:
-            if code[-1] in ('b', 'B'):
-                base_unit = code[-1]
-                suffix_rpad_spaces += 1
-                code = code[:-1]  # eat the base unit
-                if base_unit == 'b':
-                    multiple = self.word_length
+
+        elif code[-1] in ('b', 'B'):
+            base_unit = code[-1]
+            suffix_rpad_spaces += 1
+            code = code[:-1]  # eat the base unit
+            if base_unit == 'b':
+                multiple = self.word_length
 
             units = list(self.unit_prefixes.keys())
             units.sort(reverse=True)
@@ -226,6 +255,7 @@ class DataSize(__DataSize_super__):
                     denomination = self.unit_prefixes[prefix]
                     break
                 prefix, denomination = '', 1
+
         value = float(self * multiple)/float(denomination)
 
         if value.is_integer():  # emit integers if we can do it cleanly
