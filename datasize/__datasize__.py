@@ -25,7 +25,7 @@ def __bits_to_bytes__(b, word_length=8):
 
 
 if sys.version_info[0] < 3:
-    __DataSize_super__ = long
+    __DataSize_super__ = long # pylint: disable=E0602
 else:
     __DataSize_super__ = int
 
@@ -88,10 +88,32 @@ class DataSize(__DataSize_super__):
         'Zi': 1024**7,
         'Yi': 1024**8,
         }
-    nonstandard_prefixes = dict(zip(
-            (k.lower() for k in IEC_prefixes.keys()),
-            (m for m in IEC_prefixes.values())
-            ))
+    nonstandard_prefixes = {
+        'k': 1024,
+        'ki': 1024,
+        'K': 1024,
+        'm': 1024**2,
+        'mi': 1024**2,
+        'M': 1024**2,
+        'g': 1024**3,
+        'gi': 1024**3,
+        'G': 1024**3,
+        't': 1024**4,
+        'ti': 1024**4,
+        'T': 1024**4,
+        'p': 1024**5,
+        'pi': 1024**5,
+        'P': 1024**5,
+        'e': 1024**6,
+        'ei': 1024**6,
+        'E': 1024**6,
+        'z': 1024**7,
+        'zi': 1024**7,
+        'Z': 1024**7,
+        'y': 1024**8,
+        'yi': 1024**8,
+        'Y': 1024**8,
+        }
     unit_prefixes = metric_prefixes.copy()
     unit_prefixes.update(IEC_prefixes)
     # also make a map from unit denominations to prefix
@@ -99,9 +121,37 @@ class DataSize(__DataSize_super__):
         tuple(unit_prefixes.values()), tuple(unit_prefixes.keys())))
     nonstandard_units = dict(zip(
         (m for m in IEC_prefixes.values()),
-        (k.lower() for k in IEC_prefixes.keys())))
+        (k[0].lower() for k in IEC_prefixes.keys())))
 
-    def __init__(self, spec, word_length=8):
+    _auto_fmt_modes = {
+        'a': {
+            'description': "default autoformat",
+            'unit_prefixes': unit_prefixes,
+            'prefix_units': _map_rev(unit_prefixes),
+            'suffix_rpad_spaces': 3,
+        },
+        'A': {
+            'description': "(legacy) abbreviated autoformat",
+            'unit_prefixes': nonstandard_prefixes,
+            'prefix_units': _map_rev(nonstandard_prefixes),
+            'suffix_rpad_spaces': 2,
+        },
+        'm': {
+            'description': "metric units only autoformat",
+            'unit_prefixes': metric_prefixes,
+            'prefix_units': _map_rev(metric_prefixes),
+            'suffix_rpad_spaces': 2,
+        },
+        'I': {
+            'description': "IEC units only autoformat",
+            'unit_prefixes': IEC_prefixes,
+            'prefix_units': _map_rev(IEC_prefixes),
+            'suffix_rpad_spaces': 3,
+        }
+    }
+
+
+    def __init__(self, spec, word_length=8): # pylint: disable=W0231,W0613
         '''Usage:
         min_heap = DataSize('768Mib')
         max_heap = DataSize('2G')
@@ -143,8 +193,8 @@ class DataSize(__DataSize_super__):
             else:
                 try:
                     multiple = prefixes[_raw_unit]
-                except KeyError as ex:
-                    raise ValueError("'{}' invalid unit: '{}'".format(spec, _raw_unit))
+                except KeyError:
+                    raise ValueError("'{}' invalid unit: '{}'".format(spec, _raw_unit)) #pylint disable=W0707
 
             raw_number = float(_raw_size)
             if unit == 'bits':
@@ -190,63 +240,50 @@ class DataSize(__DataSize_super__):
         prefix = ''
         denomination = 1
         multiple = 1
-        auto_modes = ('a', 'A', 'm', 'I')
         suffix_rpad_spaces = 0
 
-        auto_fmt_modes = {
-            'a': {
-                'description': "default autoformat",
-                'unit_prefixes': self.unit_prefixes,
-                'prefix_units': _map_rev(self.unit_prefixes),
-                'suffix_rpad_spaces': 1,
-            },
-            'A': {
-                'description': "(legacy) abbreviated autoformat",
-                'unit_prefixes': self.IEC_prefixes,
-                'prefix_units': _map_rev(self.IEC_prefixes),
-                'suffix_rpad_spaces': 0,
-            },
-            'm': {
-                'description': "metric units only autoformat",
-                'unit_prefixes': self.metric_prefixes,
-                'prefix_units': _map_rev(self.metric_prefixes),
-                'suffix_rpad_spaces': 0,
-            },
-            'I': {
-                'description': "IEC units only autoformat",
-                'unit_prefixes': self.IEC_prefixes,
-                'prefix_units': _map_rev(self.IEC_prefixes),
-                'suffix_rpad_spaces': 1,
-            }
-        }
+        if not code: # 'a' autoformat is default
+            code = 'a'
 
-        if not code:
-            fmt_mode = auto_fmt_modes['a']
-        elif code[-1] in auto_fmt_modes:
-            fmt_mode = auto_fmt_modes[code[-1]]
-            base_unit = ''
-
-            code = code[:-1]
-            denominations = list(fmt_mode['prefix_units'].keys())
-            denominations.sort(reverse=True)
-
-            import pdb; pdb.set_trace()
-
-            for quantity in denominations:
-                if float(self) / float(quantity) >= 1.0:
-                    prefix = fmt_mode['prefix_units'][quantity]
-                    denomination = quantity
-                    break
-
-        elif code[-1] in ('b', 'B'):
+        if code[-1] in ('b', 'B'):
             base_unit = code[-1]
             suffix_rpad_spaces += 1
             code = code[:-1]  # eat the base unit
             if base_unit == 'b':
                 multiple = self.word_length
 
-            units = list(self.unit_prefixes.keys())
-            units.sort(reverse=True)
+        if code and code[-1] in self._auto_fmt_modes:
+            precision = 0 # default no fp precision format code
+            fmt_mode = self._auto_fmt_modes[code[-1]]
+            if code[-1] == 'A' and base_unit != 'b':
+                base_unit = ''
+
+            code = code[:-1]
+            denominations = list(fmt_mode['prefix_units'].keys())
+            denominations.sort(reverse=True)
+
+            for quantity in denominations:
+                if float(self) / float(quantity) >= 1.0:
+                    prefix = fmt_mode['prefix_units'][quantity]
+                    offset = len(prefix)
+                    if code[-offset:] == prefix:
+                        code = code[:-offset]
+                    for _char in code:
+                        if _char.isnumeric():
+                            if '.' in code:
+                                _start = code.index(_char)
+                                code = code[:_start] + str(int(code[_start:code.index('.')]) - offset)
+                                precision = int(code.split('.',1)[-1])
+                                code += ".{}".format(precision)
+                            break
+                    denomination = quantity
+                    break
+
+        else:
+            # get a list of unit prefixes sorted by size, ascending
+            _units_prefixes = [(v,k) for k,v in self.unit_prefixes.items()]
+            _units_prefixes.sort()
+            units = [v for k,v in _units_prefixes]
             for prefix in units:
                 offset = len(prefix)
                 if code[-offset:] == prefix:
@@ -261,11 +298,9 @@ class DataSize(__DataSize_super__):
         if value.is_integer():  # emit integers if we can do it cleanly
             code = code.split('.', 1)[0]  # precision in the code? strip it
             if code:
-                code = '{c}{n}'.format(
-                                        c=code[0],
-                                        n=(int(code) - suffix_rpad_spaces))
+                code = '{c}{n}'.format(c=code[0], n=(int(code) - suffix_rpad_spaces))
             code += 'd'
-            def cast(x): return int(x)
+            cast = lambda x: int(x)
 
         else:
             if code and '.' in code:
@@ -282,8 +317,8 @@ class DataSize(__DataSize_super__):
                                                 c=padchar,
                                                 pad=npad,
                                                 prec=fprecision)
-            code += 'f'
-            def cast(x): return x
+            code += 'g'
+            cast = lambda x: x
 
         unit_suffix_template = '{{:<{n}}}'.format(n=suffix_rpad_spaces)
         unit_output_suffix = unit_suffix_template.format(prefix + base_unit)
