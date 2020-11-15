@@ -214,7 +214,7 @@ class DataSize(__DataSize_super__):
 
     def __format__(self, code):
         '''formats as a decimal number, but recognizes data units as type
-        format codes.Precision is ignored for integer multiples of the unit
+        format codes. Precision is ignored for integer multiples of the unit
         specified in the format code.format codes:
         a    autoformat will choose a unit defaulting to the largest
               size with a quantity >= 1 (default)
@@ -236,10 +236,12 @@ class DataSize(__DataSize_super__):
                 DataSize('750GB'),DataSize(DataSize('750GB') * 0.8))
         'My new 750GB SSD really only stores 558.79GiB of data.'
         '''
+        _given_code = code[:]
         base_unit = 'B'
         prefix = ''
         denomination = 1
         multiple = 1
+        fprecision = 0 # default no fp precision format code
         suffix_rpad_spaces = 0
 
         if not code: # 'a' autoformat is default
@@ -253,7 +255,6 @@ class DataSize(__DataSize_super__):
                 multiple = self.word_length
 
         if code and code[-1] in self._auto_fmt_modes:
-            precision = 0 # default no fp precision format code
             fmt_mode = self._auto_fmt_modes[code[-1]]
             if code[-1] == 'A' and base_unit != 'b':
                 base_unit = ''
@@ -269,12 +270,13 @@ class DataSize(__DataSize_super__):
                     if code[-offset:] == prefix:
                         code = code[:-offset]
                     for _char in code:
-                        if _char.isnumeric():
+                        if _char.isnumeric() or _char == '.':
                             if '.' in code:
                                 _start = code.index(_char)
-                                code = code[:_start] + str(int(code[_start:code.index('.')]) - offset)
-                                precision = int(code.split('.',1)[-1])
-                                code += ".{}".format(precision)
+                                fprecision = int(code.split('.',1)[-1])
+                                _fpad = code[_start:code.index('.')]
+                                if _fpad:
+                                    code = code[:_start] + str(int(_fpad) - offset)
                             break
                     denomination = quantity
                     break
@@ -300,7 +302,7 @@ class DataSize(__DataSize_super__):
             if code:
                 code = '{c}{n}'.format(c=code[0], n=(int(code) - suffix_rpad_spaces))
             code += 'd'
-            cast = lambda x: int(x)
+            cast = lambda x: int(x) #pylint ignore=W0108
 
         else:
             if code and '.' in code:
@@ -313,15 +315,17 @@ class DataSize(__DataSize_super__):
                     npad = int(fpad) - suffix_rpad_spaces
                 else:
                     npad = ''
-                code = '{c}{pad}.{prec}'.format(
+                code = '{c}{pad}.{prec}f'.format(
                                                 c=padchar,
                                                 pad=npad,
                                                 prec=fprecision)
-            code += 'g'
             cast = lambda x: x
 
         unit_suffix_template = '{{:<{n}}}'.format(n=suffix_rpad_spaces)
         unit_output_suffix = unit_suffix_template.format(prefix + base_unit)
         format_parms = {'code': code, 'unit': unit_output_suffix}
         template = '{{:{code}}}{unit}'.format(**format_parms)
-        return template.format(cast(float(value)))
+        try:
+            return template.format(cast(float(value)))
+        except ValueError as err:
+            raise ValueError("Invalid format specifier: '{}' --> {}".format(_given_code, template))

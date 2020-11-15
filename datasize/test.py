@@ -1,5 +1,5 @@
 from datasize.__datasize__ import DataSize
-__default_autoformat__ = 'a'
+__default_autoformat__ = '.3a'
 import sys
 from itertools import chain
 
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     for i in chain(fixed_cases, auto_cases):
         for mode in (mode + base_unit for mode in chain(prefixes, DataSize._auto_fmt_modes.keys()) for base_unit in ('', 'B', 'b')):
             i['DS'] = DataSize('{n}{p}{b}'.format(**i))
-            i['m'] = mode
-            fmt_code_str = '"{{DS:{}}}"'.format(__default_autoformat__.replace('a', mode))
-            print('\t'.join(('','({n},','"{p}",','"{b}",','"{m}"):',fmt_code_str,',')).format(**i))
+            i['m'] = __default_autoformat__.replace('a', mode)
+            fmt_code_str = '"{{DS:{}}}"'.format(i['m'])
+            print('\t'.join(('','({n},','"{p}",','"{b}",','"{m}"): ',fmt_code_str,',')).format(**i))
     print('}')
