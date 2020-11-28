@@ -37,6 +37,7 @@ def test_bug_ticket_regressions():
 example_values = (1, 2, 4, 16, 64, 1024, 65536, 0.1, 0.25, 0.125, 56.65)
 prefixes = list(DataSize.unit_prefixes.keys())
 bases = ('B','b')
+padchars, npads, fprecisions = (('','0'), (20, ''), (3,4))
 fixed_cases = [{'n':n,'p':p,'b':b} for n in example_values for p in prefixes for b in bases]
 auto_cases = [{'n':n,'p':p,'b':b} for n in (512,65536,64) for p in prefixes for b in ('', 'b')]
 
@@ -47,8 +48,9 @@ if __name__ == '__main__':
     print('parse_and_format_results = {')
     for i in chain(fixed_cases, auto_cases):
         for mode in (mode + base_unit for mode in chain(prefixes, DataSize._auto_fmt_modes.keys()) for base_unit in ('', 'B', 'b')):
-            i['DS'] = DataSize('{n}{p}{b}'.format(**i))
-            i['m'] = __default_autoformat__.replace('a', mode)
-            fmt_code_str = '"{{DS:{}}}"'.format(i['m'])
-            print('\t'.join(('','({n},','"{p}",','"{b}",','"{m}"): ',fmt_code_str,',')).format(**i))
+            for padding in chain((''), ('{}{}.{}'.format(c,n,p) for c in padchars for n in npads for p in fprecisions)):
+                i['DS'] = DataSize('{n}{p}{b}'.format(**i))
+                i['m'] = padding + mode
+                fmt_code_str = '"{{DS:{}}}"'.format(i['m'])
+                print('\t'.join(('','({n},','"{p}",','"{b}",','"{m}"): ',fmt_code_str,',')).format(**i))
     print('}')

@@ -266,9 +266,9 @@ class DataSize(__DataSize_super__):
             for quantity in denominations:
                 if float(self) / float(quantity) >= 1.0:
                     prefix = fmt_mode['prefix_units'][quantity]
-                    offset = len(prefix)
-                    if code[-offset:] == prefix:
-                        code = code[:-offset]
+                    prefix_offset = len(prefix)
+                    if code[-prefix_offset:] == prefix:
+                        code = code[:-prefix_offset]
                     for _char in code:
                         if _char.isnumeric() or _char == '.':
                             if '.' in code:
@@ -276,7 +276,7 @@ class DataSize(__DataSize_super__):
                                 fprecision = int(code.split('.',1)[-1])
                                 _fpad = code[_start:code.index('.')]
                                 if _fpad:
-                                    code = code[:_start] + str(int(_fpad) - offset)
+                                    code = code[:_start] + str(int(_fpad) - prefix_offset)
                             break
                     denomination = quantity
                     break
@@ -287,10 +287,10 @@ class DataSize(__DataSize_super__):
             _units_prefixes.sort()
             units = [v for k,v in _units_prefixes]
             for prefix in units:
-                offset = len(prefix)
-                if code[-offset:] == prefix:
-                    suffix_rpad_spaces += offset
-                    code = code[:-offset]
+                prefix_offset = len(prefix)
+                if code[-prefix_offset:] == prefix:
+                    suffix_rpad_spaces += prefix_offset
+                    code = code[:-prefix_offset]
                     denomination = self.unit_prefixes[prefix]
                     break
                 prefix, denomination = '', 1
@@ -299,21 +299,25 @@ class DataSize(__DataSize_super__):
 
         if value.is_integer():  # emit integers if we can do it cleanly
             code = code.split('.', 1)[0]  # precision in the code? strip it
-            if code:
-                code = '{c}{n}'.format(c=code[0], n=(int(code) - suffix_rpad_spaces))
             code += 'd'
-            cast = lambda x: int(x) #pylint ignore=W0108
+            cast = lambda x: int(x) #pylint: disable=W0108
 
         else:
-            if code and '.' in code:
-                fpad, fprecision = code.split('.', 1)
-                if fpad:
-                    padchar = fpad[0]
+            if code and code[-1].isnumeric():
+                fpad, period, fprecision = code.partition('.')
+                if len(fpad) == 2:
+                    padchar, npad = map(int,fpad)
+                elif len(fpad) == 1:
+                    padchar = ''
+                    npad = int(fpad)
+                elif len(fpad) >2:
+                    try:
+                        padchar = fpad[0]
+                        npad = int(fpad[1:])
+                    except ValueError as err:
+                        raise ValueError("bad padding spec '{}' in format code: '{}'".format(fpad, _given_code))
                 else:
                     padchar = ''
-                if fpad:
-                    npad = int(fpad) - suffix_rpad_spaces
-                else:
                     npad = ''
                 code = '{c}{pad}.{prec}f'.format(
                                                 c=padchar,
